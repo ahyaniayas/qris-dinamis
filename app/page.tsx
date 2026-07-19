@@ -258,9 +258,12 @@ export default function Home() {
     const canvas = document.createElement('canvas');
     const ctx = canvas.getContext('2d');
     
-    const PADDING = 40;
-    const HEADER_HEIGHT = logoImg ? 60 : 0;
-    const FOOTER_HEIGHT = 100;
+    // Scale factor based on the upscaled image (standard was ~256)
+    const scale = img.width / 256;
+    
+    const PADDING = 40 * scale;
+    const HEADER_HEIGHT = logoImg ? 60 * scale : 0;
+    const FOOTER_HEIGHT = 100 * scale;
     
     canvas.width = img.width + (PADDING * 2);
     canvas.height = img.height + HEADER_HEIGHT + FOOTER_HEIGHT + (PADDING * 2);
@@ -273,7 +276,7 @@ export default function Home() {
       let qrY = PADDING;
       
       if (logoImg) {
-        const logoH = 40;
+        const logoH = 40 * scale;
         const logoW = (logoImg.width / logoImg.height) * logoH;
         const logoX = (canvas.width - logoW) / 2;
         ctx.drawImage(logoImg, logoX, PADDING, logoW, logoH);
@@ -284,15 +287,15 @@ export default function Home() {
       ctx.drawImage(img, PADDING, qrY);
       
       // Footer text
-      const footerY = qrY + img.height + 50;
+      const footerY = qrY + img.height + (50 * scale);
       ctx.fillStyle = '#1e293b';
-      ctx.font = 'bold 32px sans-serif';
+      ctx.font = `bold ${32 * scale}px sans-serif`;
       ctx.textAlign = 'center';
       ctx.fillText(`Rp ${formattedAmount}`, canvas.width / 2, footerY);
       
       ctx.fillStyle = '#64748b';
-      ctx.font = '16px sans-serif';
-      ctx.fillText('Konversi QRIS Statismu di qris.yukmaju.com', canvas.width / 2, footerY + 30);
+      ctx.font = `${16 * scale}px sans-serif`;
+      ctx.fillText('Konversi QRIS Statismu di qris.yukmaju.com', canvas.width / 2, footerY + (30 * scale));
       
       onReady(canvas);
     }
@@ -302,7 +305,12 @@ export default function Home() {
     const svg = document.getElementById('qris-svg');
     if (!svg) return;
 
-    const svgData = new XMLSerializer().serializeToString(svg);
+    const svgDataOriginal = new XMLSerializer().serializeToString(svg);
+    // Upscale the SVG to 1024x1024 for high resolution export
+    const svgData = svgDataOriginal
+      .replace(/width="[^"]+"/, 'width="1024"')
+      .replace(/height="[^"]+"/, 'height="1024"');
+    
     const img = new window.Image();
 
     img.onload = () => {
@@ -329,7 +337,12 @@ export default function Home() {
     const svg = document.getElementById('qris-svg');
     if (!svg) return;
 
-    const svgData = new XMLSerializer().serializeToString(svg);
+    const svgDataOriginal = new XMLSerializer().serializeToString(svg);
+    // Upscale the SVG to 1024x1024 for high resolution export
+    const svgData = svgDataOriginal
+      .replace(/width="[^"]+"/, 'width="1024"')
+      .replace(/height="[^"]+"/, 'height="1024"');
+
     const img = new window.Image();
 
     img.onload = () => {
