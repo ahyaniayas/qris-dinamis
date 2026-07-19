@@ -23,7 +23,25 @@ export default function Home() {
   const [inputMode, setInputMode] = useState<'upload' | 'scan'>('upload');
   const [isScanning, setIsScanning] = useState(false);
   const [showInfo, setShowInfo] = useState(false);
+  const [closingInfo, setClosingInfo] = useState(false);
   const [isFullscreenQr, setIsFullscreenQr] = useState(false);
+  const [closingFullscreen, setClosingFullscreen] = useState(false);
+
+  const handleCloseFullscreen = () => {
+    setClosingFullscreen(true);
+    setTimeout(() => {
+      setIsFullscreenQr(false);
+      setClosingFullscreen(false);
+    }, 200);
+  };
+
+  const handleCloseInfo = () => {
+    setClosingInfo(true);
+    setTimeout(() => {
+      setShowInfo(false);
+      setClosingInfo(false);
+    }, 200);
+  };
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const logoInputRef = useRef<HTMLInputElement>(null);
@@ -508,11 +526,11 @@ export default function Home() {
       )}
 
       {mounted && isFullscreenQr && dynamicQris && createPortal(
-        <div className="modal-overlay" onClick={() => setIsFullscreenQr(false)} style={{ zIndex: 9999, background: 'rgba(0,0,0,0.9)' }}>
-          <div style={{ background: 'white', padding: '1.5rem 1.5rem 2rem 1.5rem', borderRadius: '24px', display: 'flex', flexDirection: 'column', alignItems: 'center', position: 'relative', width: '90%', maxWidth: '500px', maxHeight: '90vh', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
-            <div style={{ width: '100%', display: 'flex', justifyContent: 'flex-end', marginBottom: '1rem' }}>
+        <div className={`modal-overlay ${closingFullscreen ? 'modal-overlay-closing' : 'modal-overlay-animated'}`} onClick={handleCloseFullscreen} style={{ zIndex: 9999, background: 'rgba(0,0,0,0.9)' }}>
+          <div className={closingFullscreen ? 'modal-content-closing' : 'modal-content-animated'} style={{ background: 'white', padding: '1rem 1rem 1.5rem 1rem', borderRadius: typeof window !== 'undefined' && window.innerWidth <= 500 ? '0' : '24px', display: 'flex', flexDirection: 'column', alignItems: 'center', position: 'relative', width: '100%', maxWidth: '500px', maxHeight: '100vh', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
+            <div style={{ width: '100%', display: 'flex', justifyContent: 'flex-end', marginBottom: '0.5rem' }}>
               <button
-                onClick={() => setIsFullscreenQr(false)}
+                onClick={handleCloseFullscreen}
                 style={{ background: 'var(--slate-100, #f1f5f9)', border: 'none', color: '#1e293b', cursor: 'pointer', borderRadius: '50%', padding: '0.5rem', display: 'flex', transition: 'background 0.2s' }}
               >
                 <X size={24} />
@@ -520,7 +538,7 @@ export default function Home() {
             </div>
             <QRCodeSVG
               value={dynamicQris}
-              size={Math.min(typeof window !== 'undefined' ? window.innerWidth * 0.8 : 400, 400)}
+              size={Math.min(typeof window !== 'undefined' ? window.innerWidth - 32 : 468, typeof window !== 'undefined' ? window.innerHeight - 200 : 468, 468)}
               level="H"
               {...(logoIcon && logoDims ? {
                 imageSettings: {
@@ -545,15 +563,12 @@ export default function Home() {
       <canvas ref={canvasRef} className="hidden-canvas" />
 
       {mounted && showInfo && createPortal(
-        <div className="modal-overlay" onClick={() => setShowInfo(false)}>
-          <div className="modal-content glass-card" onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: '500px', maxHeight: '90vh', padding: 0, display: 'flex', flexDirection: 'column', position: 'relative', background: 'var(--glass-bg)', border: '1px solid var(--glass-border)', boxSizing: 'border-box', overflowY: 'auto' }}>
+        <div className={`modal-overlay ${closingInfo ? 'modal-overlay-closing' : 'modal-overlay-animated'}`} onClick={handleCloseInfo}>
+          <div className={`modal-content glass-card ${closingInfo ? 'modal-content-closing' : 'modal-content-animated'}`} onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: '500px', maxHeight: '90vh', padding: 0, display: 'flex', flexDirection: 'column', position: 'relative', background: 'var(--glass-bg)', border: '1px solid var(--glass-border)', boxSizing: 'border-box', overflowY: 'auto' }}>
             
             <div style={{ position: 'sticky', top: 0, padding: '1.5rem 2rem', borderBottom: '1px solid var(--glass-border)', background: 'var(--glass-bg)', backdropFilter: 'blur(16px)', zIndex: 10, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <h2 style={{ fontSize: '1.5rem', color: 'var(--accent)', margin: 0 }}>Informasi & Disclaimer</h2>
-              <button
-                onClick={() => setShowInfo(false)}
-                style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', display: 'flex', alignItems: 'center' }}
-              >
+              <button onClick={handleCloseInfo} style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer' }}>
                 <X size={24} />
               </button>
             </div>
