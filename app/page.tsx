@@ -252,27 +252,28 @@ export default function Home() {
 
   return (
     <div className="glass-card">
-      <div className="header" style={{ position: 'relative' }}>
+      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem', marginBottom: '1rem' }}>
+        {mounted && (
+          <button
+            onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+            style={{ background: 'var(--input-bg)', border: '1px solid var(--glass-border)', borderRadius: '50%', width: '40px', height: '40px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-secondary)', cursor: 'pointer', transition: 'all 0.2s' }}
+            title="Ganti Tema"
+          >
+            {theme === 'dark' ? <Sun size={20} /> : <Moon size={20} />}
+          </button>
+        )}
+        <button
+          onClick={() => setShowInfo(true)}
+          style={{ background: 'var(--input-bg)', border: '1px solid var(--glass-border)', borderRadius: '50%', width: '40px', height: '40px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-secondary)', cursor: 'pointer', transition: 'all 0.2s' }}
+          title="Informasi & Disclaimer"
+        >
+          <Info size={20} />
+        </button>
+      </div>
+
+      <div className="header">
         <h1>QRIS Dinamis</h1>
         <p>Ubah QRIS Statis Anda menjadi Dinamis dengan mudah</p>
-        <div style={{ position: 'absolute', top: 0, right: 0, display: 'flex', gap: '0.5rem' }}>
-          {mounted && (
-            <button
-              onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
-              style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', padding: '0.5rem' }}
-              title="Ganti Tema"
-            >
-              {theme === 'dark' ? <Sun size={24} /> : <Moon size={24} />}
-            </button>
-          )}
-          <button
-            onClick={() => setShowInfo(true)}
-            style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', padding: '0.5rem' }}
-            title="Informasi & Disclaimer"
-          >
-            <Info size={24} />
-          </button>
-        </div>
       </div>
 
       <div className="form-group">
@@ -417,17 +418,20 @@ export default function Home() {
 
       {showInfo && (
         <div className="modal-overlay" onClick={() => setShowInfo(false)}>
-          <div className="modal-content glass-card" onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: '500px', maxHeight: '90vh', overflowY: 'auto', position: 'relative', background: 'var(--glass-bg)', border: '1px solid var(--glass-border)', margin: '0 auto', boxSizing: 'border-box' }}>
-            <button
-              onClick={() => setShowInfo(false)}
-              style={{ position: 'absolute', top: '1.5rem', right: '1.5rem', background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer' }}
-            >
-              <X size={24} />
-            </button>
-            <h2 style={{ marginBottom: '1.5rem', fontSize: '1.5rem', color: 'var(--accent)', paddingRight: '2rem' }}>Informasi & Disclaimer</h2>
+          <div className="modal-content glass-card" onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: '500px', maxHeight: '90vh', padding: 0, display: 'flex', flexDirection: 'column', position: 'relative', background: 'var(--glass-bg)', border: '1px solid var(--glass-border)', margin: '0 auto', boxSizing: 'border-box', overflow: 'hidden' }}>
+            
+            <div style={{ position: 'sticky', top: 0, padding: '1.5rem 2rem', borderBottom: '1px solid var(--glass-border)', background: 'var(--glass-bg)', backdropFilter: 'blur(16px)', zIndex: 10, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <h2 style={{ fontSize: '1.5rem', color: 'var(--accent)', margin: 0 }}>Informasi & Disclaimer</h2>
+              <button
+                onClick={() => setShowInfo(false)}
+                style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', display: 'flex', alignItems: 'center' }}
+              >
+                <X size={24} />
+              </button>
+            </div>
 
-            <div style={{ fontSize: '0.9rem', lineHeight: '1.5', color: 'var(--text-primary)', textAlign: 'left' }}>
-              <h3 style={{ marginTop: '1rem', marginBottom: '0.75rem', color: 'var(--text-primary)', fontSize: '1.1rem' }}>Tata Cara Pemakaian:</h3>
+            <div style={{ padding: '1.5rem 2rem', overflowY: 'auto', fontSize: '0.9rem', lineHeight: '1.5', color: 'var(--text-primary)', textAlign: 'left' }}>
+              <h3 style={{ marginBottom: '0.75rem', color: 'var(--text-primary)', fontSize: '1.1rem' }}>Tata Cara Pemakaian:</h3>
               <ol style={{ paddingLeft: '1.5rem', marginBottom: '1.5rem', listStyleType: 'decimal' }}>
                 <li style={{ marginBottom: '0.5rem' }}><strong>Siapkan QRIS Statis:</strong> Gunakan gambar QRIS dari bank/e-wallet Anda.</li>
                 <li style={{ marginBottom: '0.5rem' }}><strong>Pilih Input:</strong> Upload gambar atau gunakan Kamera untuk scan langsung.</li>
