@@ -1,66 +1,423 @@
-import Image from "next/image";
-import styles from "./page.module.css";
+'use client';
+
+import React, { useState, useRef, useEffect } from 'react';
+import jsQR from 'jsqr';
+import { QRCodeSVG } from 'qrcode.react';
+import { Upload, AlertCircle, CheckCircle2, Download, QrCode, Camera, Image as ImageIcon, Info, X } from 'lucide-react';
+import { Html5Qrcode } from 'html5-qrcode';
 
 export default function Home() {
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [qrisPayload, setQrisPayload] = useState<string | null>(null);
+  const [amount, setAmount] = useState<string>('');
+  const [formattedAmount, setFormattedAmount] = useState<string>('');
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [dynamicQris, setDynamicQris] = useState<string | null>(null);
+  
+  const [inputMode, setInputMode] = useState<'upload' | 'scan'>('upload');
+  const [isScanning, setIsScanning] = useState(false);
+  const [showInfo, setShowInfo] = useState(false);
+  
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const logoInputRef = useRef<HTMLInputElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const html5QrCodeRef = useRef<Html5Qrcode | null>(null);
+
+  const [logoIcon, setLogoIcon] = useState<string | null>(null);
+  const [logoDims, setLogoDims] = useState<{width: number, height: number} | null>(null);
+
+  useEffect(() => {
+    if (inputMode === 'scan') {
+      startScan();
+    } else {
+      stopScan();
+    }
+    return () => {
+      stopScan();
+    };
+  }, [inputMode]);
+
+  const startScan = async () => {
+    setIsScanning(true);
+    setQrisPayload(null);
+    setError(null);
+    setImagePreview(null);
+    
+    try {
+      if (!html5QrCodeRef.current) {
+        html5QrCodeRef.current = new Html5Qrcode("reader");
+      }
+      
+      await html5QrCodeRef.current.start(
+        { facingMode: "environment" },
+        { fps: 10, qrbox: { width: 250, height: 250 } },
+        (decodedText) => {
+          setQrisPayload(decodedText);
+          setInputMode('upload'); // Switch back to upload view to show success
+          stopScan();
+        },
+        () => {
+          // Ignore frequent scan errors
+        }
+      );
+    } catch (err) {
+      console.error(err);
+      setError("Gagal mengakses kamera. Pastikan izin diberikan.");
+      setIsScanning(false);
+      setInputMode('upload');
+    }
+  };
+
+  const stopScan = () => {
+    if (html5QrCodeRef.current && html5QrCodeRef.current.isScanning) {
+      html5QrCodeRef.current.stop().then(() => {
+        setIsScanning(false);
+      }).catch(console.error);
+    }
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Reset states
+    setError(null);
+    setQrisPayload(null);
+    setDynamicQris(null);
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const dataUrl = event.target?.result as string;
+      setImagePreview(dataUrl);
+      decodeQR(dataUrl);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleLogoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Validate size (max 1MB)
+    if (file.size > 1 * 1024 * 1024) {
+      alert("Ukuran gambar logo terlalu besar! Maksimal 1MB agar perangkat tidak hang.");
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const dataUrl = event.target?.result as string;
+      const img = new window.Image();
+      img.onload = () => {
+        // Compute proper aspect ratio (max dimension 64px, about 25% of 256px)
+        let w = 64;
+        let h = 64;
+        if (img.width > img.height) {
+          h = 64 * (img.height / img.width);
+        } else if (img.height > img.width) {
+          w = 64 * (img.width / img.height);
+        }
+        setLogoDims({ width: w, height: h });
+        setLogoIcon(dataUrl);
+      };
+      img.src = dataUrl;
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const decodeQR = (dataUrl: string) => {
+    const image = new window.Image();
+    image.onload = () => {
+      const canvas = canvasRef.current;
+      if (!canvas) return;
+      
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
+
+      canvas.width = image.width;
+      canvas.height = image.height;
+      ctx.drawImage(image, 0, 0, image.width, image.height);
+
+      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      const code = jsQR(imageData.data, imageData.width, imageData.height, {
+        inversionAttempts: "dontInvert",
+      });
+
+      if (code) {
+        setQrisPayload(code.data);
+      } else {
+        setError('QR Code tidak terdeteksi pada gambar. Pastikan gambar jelas.');
+      }
+    };
+    image.src = dataUrl;
+  };
+
+  const handleAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    // Remove non-numeric characters
+    const rawValue = e.target.value.replace(/\D/g, '');
+    if (!rawValue) {
+      setAmount('');
+      setFormattedAmount('');
+      return;
+    }
+    // Format with id-ID locale for thousands separator
+    const formatted = new Intl.NumberFormat('id-ID').format(Number(rawValue));
+    setAmount(rawValue);
+    setFormattedAmount(formatted);
+  };
+
+  const handleConvert = async () => {
+    if (!qrisPayload) {
+      setError('Payload QRIS tidak ditemukan. Silakan input ulang QRIS.');
+      return;
+    }
+
+    if (!amount || isNaN(Number(amount)) || Number(amount) <= 0) {
+      setError('Masukkan nominal yang valid.');
+      return;
+    }
+
+    setIsProcessing(true);
+    setError(null);
+    setDynamicQris(null);
+
+    try {
+      const res = await fetch('/api/convert', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ payload: qrisPayload, amount: Number(amount) })
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.error || 'Terjadi kesalahan saat memproses QRIS.');
+      }
+
+      setDynamicQris(data.payload);
+    } catch (err: any) {
+      setError(err.message || 'Terjadi kesalahan sistem.');
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const handleDownload = () => {
+    const svg = document.getElementById('qris-svg');
+    if (!svg) return;
+    
+    const svgData = new XMLSerializer().serializeToString(svg);
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    const img = new window.Image();
+    
+    img.onload = () => {
+      canvas.width = img.width + 40;
+      canvas.height = img.height + 40;
+      if (ctx) {
+        ctx.fillStyle = 'white';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(img, 20, 20);
+        
+        const pngFile = canvas.toDataURL('image/png');
+        const downloadLink = document.createElement('a');
+        downloadLink.download = `QRIS-${amount}.png`;
+        downloadLink.href = `${pngFile}`;
+        downloadLink.click();
+      }
+    };
+    
+    img.src = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svgData)));
+  };
+
   return (
-    <div className={styles.page}>
-      <main className={styles.main}>
-        <Image
-          className={styles.logo}
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className={styles.intro}>
-          <h1>To get started, edit the page.tsx file.</h1>
-          <p>
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className={styles.ctas}>
-          <a
-            className={styles.primary}
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
+    <div className="glass-card">
+      <div className="header" style={{ position: 'relative' }}>
+        <h1>QRIS Dinamis</h1>
+        <p>Ubah QRIS Statis Anda menjadi Dinamis dengan mudah</p>
+        <button 
+          onClick={() => setShowInfo(true)}
+          style={{ position: 'absolute', top: 0, right: 0, background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', padding: '0.5rem' }}
+          title="Informasi & Disclaimer"
+        >
+          <Info size={24} />
+        </button>
+      </div>
+
+      <div className="form-group">
+        <label>1. Masukkan QRIS Statis</label>
+        
+        <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem' }}>
+          <button 
+            className={`btn ${inputMode === 'upload' ? '' : 'inactive-btn'}`}
+            style={{ flex: 1, opacity: inputMode === 'upload' ? 1 : 0.5, background: inputMode === 'upload' ? '' : 'rgba(255,255,255,0.1)' }}
+            onClick={() => setInputMode('upload')}
           >
-            <Image
-              className={styles.logo}
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
+            <ImageIcon size={18} /> Upload
+          </button>
+          <button 
+            className={`btn ${inputMode === 'scan' ? '' : 'inactive-btn'}`}
+            style={{ flex: 1, opacity: inputMode === 'scan' ? 1 : 0.5, background: inputMode === 'scan' ? '' : 'rgba(255,255,255,0.1)' }}
+            onClick={() => setInputMode('scan')}
+          >
+            <Camera size={18} /> Kamera
+          </button>
+        </div>
+
+        <div style={{ display: inputMode === 'upload' ? 'block' : 'none' }}>
+          <div 
+            className="upload-area" 
+            onClick={() => fileInputRef.current?.click()}
+          >
+            {imagePreview ? (
+              <img src={imagePreview} alt="Preview" className="preview-image" />
+            ) : (
+              <>
+                <Upload className="upload-icon" />
+                <p>Klik untuk memilih gambar QRIS</p>
+              </>
+            )}
+            <input 
+              type="file" 
+              accept="image/*" 
+              ref={fileInputRef} 
+              onChange={handleFileChange} 
             />
-            Deploy Now
-          </a>
-          <a
-            className={styles.secondary}
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+          </div>
         </div>
-      </main>
+
+        <div style={{ display: inputMode === 'scan' ? 'block' : 'none' }}>
+          <div id="reader" style={{ width: '100%', borderRadius: '16px', overflow: 'hidden' }}></div>
+          {isScanning && <p style={{ textAlign: 'center', marginTop: '1rem' }}>Mencari QR Code...</p>}
+        </div>
+
+        {qrisPayload && !error && (
+          <p style={{ color: '#4ade80', marginTop: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.9rem' }}>
+            <CheckCircle2 size={16} /> QRIS berhasil dipindai
+          </p>
+        )}
+      </div>
+
+      <div className="form-group">
+        <label>2. Masukkan Nominal (Rp)</label>
+        <div style={{ position: 'relative' }}>
+          <span style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-secondary)' }}>Rp</span>
+          <input 
+            type="text" 
+            className="input-field" 
+            style={{ paddingLeft: '2.5rem' }}
+            placeholder="Contoh: 50.000" 
+            value={formattedAmount}
+            onChange={handleAmountChange}
+          />
+        </div>
+      </div>
+
+      {error && (
+        <div className="error-message form-group">
+          <AlertCircle size={18} />
+          {error}
+        </div>
+      )}
+
+      <button 
+        className="btn" 
+        onClick={handleConvert} 
+        disabled={isProcessing || !qrisPayload || !amount}
+      >
+        <QrCode size={20} />
+        {isProcessing ? 'Memproses...' : 'Buat QRIS Dinamis'}
+      </button>
+
+      {dynamicQris && (
+        <div className="result-container">
+          <h3>QRIS Dinamis Anda Siap!</h3>
+          <p style={{ color: 'var(--text-secondary)', marginBottom: '1.5rem', fontSize: '0.9rem' }}>
+            Nominal: Rp {formattedAmount}
+          </p>
+          
+          <div className="qr-wrapper">
+            <QRCodeSVG 
+              id="qris-svg"
+              value={dynamicQris} 
+              size={256} 
+              level="H"
+              className="qr-code"
+              {...(logoIcon && logoDims ? {
+                imageSettings: {
+                  src: logoIcon,
+                  height: logoDims.height,
+                  width: logoDims.width,
+                  excavate: true
+                }
+              } : {})}
+            />
+          </div>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginBottom: '1.5rem', alignItems: 'center' }}>
+            <p style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>Opsional: Tambahkan Logo di Tengah QR</p>
+            <div style={{ display: 'flex', gap: '0.5rem' }}>
+              <button className="btn" style={{ background: 'rgba(255,255,255,0.1)', fontSize: '0.9rem', padding: '0.5rem 1rem', width: 'auto' }} onClick={() => logoInputRef.current?.click()}>
+                <ImageIcon size={16} /> Pilih Logo
+              </button>
+              {logoIcon && (
+                <button className="btn" style={{ background: 'var(--error)', fontSize: '0.9rem', padding: '0.5rem 1rem', width: 'auto' }} onClick={() => setLogoIcon(null)}>
+                  Hapus Logo
+                </button>
+              )}
+            </div>
+            <input 
+              type="file" 
+              accept="image/*" 
+              ref={logoInputRef} 
+              onChange={handleLogoChange} 
+              style={{ display: 'none' }}
+            />
+          </div>
+
+          <button className="btn" onClick={handleDownload} style={{ background: '#10b981', maxWidth: '300px', margin: '0 auto' }}>
+            <Download size={20} />
+            Download QR Code
+          </button>
+        </div>
+      )}
+
+      <canvas ref={canvasRef} className="hidden-canvas" />
+
+      {showInfo && (
+        <div className="modal-overlay" onClick={() => setShowInfo(false)}>
+          <div className="modal-content glass-card" onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: '500px', maxHeight: '90vh', overflowY: 'auto', position: 'relative', background: '#0f172a', border: '1px solid var(--glass-border)', margin: '0 auto', boxSizing: 'border-box' }}>
+            <button 
+              onClick={() => setShowInfo(false)}
+              style={{ position: 'absolute', top: '1.5rem', right: '1.5rem', background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer' }}
+            >
+              <X size={24} />
+            </button>
+            <h2 style={{ marginBottom: '1.5rem', fontSize: '1.5rem', color: 'var(--accent)', paddingRight: '2rem' }}>Informasi & Disclaimer</h2>
+            
+            <div style={{ fontSize: '0.9rem', lineHeight: '1.5', color: 'var(--text-primary)', textAlign: 'left' }}>
+              <h3 style={{ marginTop: '1rem', marginBottom: '0.75rem', color: 'white', fontSize: '1.1rem' }}>Tata Cara Pemakaian:</h3>
+              <ol style={{ paddingLeft: '1.5rem', marginBottom: '1.5rem', listStyleType: 'decimal' }}>
+                <li style={{ marginBottom: '0.5rem' }}><strong>Siapkan QRIS Statis:</strong> Gunakan gambar QRIS dari bank/e-wallet Anda.</li>
+                <li style={{ marginBottom: '0.5rem' }}><strong>Pilih Input:</strong> Upload gambar atau gunakan Kamera untuk scan langsung.</li>
+                <li style={{ marginBottom: '0.5rem' }}><strong>Tentukan Nominal:</strong> Masukkan jumlah pembayaran yang diinginkan.</li>
+                <li style={{ marginBottom: '0.5rem' }}><strong>Proses:</strong> Klik tombol "Buat QRIS Dinamis".</li>
+                <li style={{ marginBottom: '0.5rem' }}><strong>Selesai:</strong> Unduh QR Code yang baru untuk dibagikan.</li>
+              </ol>
+
+              <h3 style={{ marginTop: '1.5rem', marginBottom: '0.75rem', color: 'var(--error)', fontSize: '1.1rem' }}>⚠️ Disclaimer:</h3>
+              <ol style={{ paddingLeft: '1.5rem', marginBottom: '1rem', listStyleType: 'decimal' }}>
+                <li style={{ marginBottom: '0.5rem' }}>Aplikasi ini 100% berjalan lokal. Tidak ada data yang dikirim ke server.</li>
+                <li style={{ marginBottom: '0.5rem' }}>Penambahan logo di tengah QRIS dapat membuat QR lebih sulit di-scan oleh beberapa aplikasi bank.</li>
+                <li style={{ marginBottom: '0.5rem' }}>Pengembang tidak bertanggung jawab atas kerugian finansial, gagal transfer, atau error sistem. Segala risiko adalah tanggung jawab pengguna sepenuhnya.</li>
+                <li style={{ marginBottom: '0.5rem' }}>Selalu lakukan tes scan dengan nominal kecil sebelum digunakan untuk transaksi sungguhan.</li>
+              </ol>
+            </div>
+            
+          </div>
+        </div>
+      )}
     </div>
   );
 }
