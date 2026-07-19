@@ -1,9 +1,10 @@
 'use client';
 
 import React, { useState, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import jsQR from 'jsqr';
 import { QRCodeSVG } from 'qrcode.react';
-import { Upload, Camera, Download, QrCode, AlertCircle, X, Image as ImageIcon, Sun, Moon, CheckCircle2, Info } from 'lucide-react';
+import { Upload, Camera, Download, QrCode, AlertCircle, X, Image as ImageIcon, Sun, Moon, CheckCircle2, Info, Share2, Maximize2 } from 'lucide-react';
 import { Html5Qrcode } from 'html5-qrcode';
 import { useTheme } from 'next-themes';
 
@@ -22,6 +23,7 @@ export default function Home() {
   const [inputMode, setInputMode] = useState<'upload' | 'scan'>('upload');
   const [isScanning, setIsScanning] = useState(false);
   const [showInfo, setShowInfo] = useState(false);
+  const [isFullscreenQr, setIsFullscreenQr] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const logoInputRef = useRef<HTMLInputElement>(null);
@@ -44,7 +46,19 @@ export default function Home() {
     return () => {
       stopScan();
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [inputMode]);
+
+  useEffect(() => {
+    if (showInfo || isFullscreenQr) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [showInfo, isFullscreenQr]);
 
   const startScan = async () => {
     if (html5QrCodeRef.current && html5QrCodeRef.current.isScanning) {
@@ -222,29 +236,87 @@ export default function Home() {
     }
   };
 
+  const createQrisCanvas = (img: HTMLImageElement, onReady: (canvas: HTMLCanvasElement) => void) => {
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    
+    const PADDING = 40;
+    const FOOTER_HEIGHT = 100;
+    
+    canvas.width = img.width + (PADDING * 2);
+    canvas.height = img.height + FOOTER_HEIGHT + (PADDING * 2);
+    
+    if (ctx) {
+      // Background
+      ctx.fillStyle = 'white';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      
+      // Draw QR Code
+      const qrY = PADDING;
+      ctx.drawImage(img, PADDING, qrY);
+      
+      // Footer text
+      const footerY = qrY + img.height + 50;
+      ctx.fillStyle = '#1e293b';
+      ctx.font = 'bold 32px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText(`Rp ${formattedAmount}`, canvas.width / 2, footerY);
+      
+      ctx.fillStyle = '#64748b';
+      ctx.font = '16px sans-serif';
+      ctx.fillText('Konversi QRIS Statismu di qris.yukmaju.com', canvas.width / 2, footerY + 30);
+      
+      onReady(canvas);
+    }
+  };
+
   const handleDownload = () => {
     const svg = document.getElementById('qris-svg');
     if (!svg) return;
 
     const svgData = new XMLSerializer().serializeToString(svg);
-    const canvas = document.createElement('canvas');
-    const ctx = canvas.getContext('2d');
     const img = new window.Image();
 
     img.onload = () => {
-      canvas.width = img.width + 40;
-      canvas.height = img.height + 40;
-      if (ctx) {
-        ctx.fillStyle = 'white';
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-        ctx.drawImage(img, 20, 20);
-
+      createQrisCanvas(img, (canvas) => {
         const pngFile = canvas.toDataURL('image/png');
         const downloadLink = document.createElement('a');
         downloadLink.download = `QRIS-${amount}.png`;
         downloadLink.href = `${pngFile}`;
         downloadLink.click();
-      }
+      });
+    };
+
+    img.src = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svgData)));
+  };
+
+  const handleShare = () => {
+    const svg = document.getElementById('qris-svg');
+    if (!svg) return;
+
+    const svgData = new XMLSerializer().serializeToString(svg);
+    const img = new window.Image();
+
+    img.onload = () => {
+      createQrisCanvas(img, (canvas) => {
+        canvas.toBlob(async (blob) => {
+          if (!blob) return;
+          const file = new File([blob], `QRIS-${amount}.png`, { type: 'image/png' });
+          if (navigator.canShare && navigator.canShare({ files: [file] })) {
+            try {
+              await navigator.share({
+                title: 'QRIS Dinamis',
+                text: `QRIS Dinamis sebesar Rp ${formattedAmount}.\n\nKonversi QRIS Statismu di qris.yukmaju.com`,
+                files: [file]
+              });
+            } catch (err) {
+              console.log('Share canceled or failed:', err);
+            }
+          } else {
+            alert('Perangkat/Browser Anda tidak mendukung fitur berbagi file gambar secara langsung. Silakan gunakan tombol Download.');
+          }
+        }, 'image/png');
+      });
     };
 
     img.src = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svgData)));
@@ -353,6 +425,7 @@ export default function Home() {
       )}
 
       <button
+        suppressHydrationWarning
         className="btn"
         onClick={handleConvert}
         disabled={isProcessing || !qrisPayload || !amount}
@@ -368,22 +441,36 @@ export default function Home() {
             Nominal: Rp {formattedAmount}
           </p>
 
-          <div className="qr-wrapper">
-            <QRCodeSVG
-              id="qris-svg"
-              value={dynamicQris}
-              size={256}
-              level="H"
-              className="qr-code"
-              {...(logoIcon && logoDims ? {
-                imageSettings: {
-                  src: logoIcon,
-                  height: logoDims.height,
-                  width: logoDims.width,
-                  excavate: true
-                }
-              } : {})}
-            />
+          <div className="qr-wrapper" onClick={() => setIsFullscreenQr(true)} style={{ cursor: 'pointer', position: 'relative', background: 'white', padding: '2rem 1.5rem', borderRadius: '16px', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}>
+            
+            <div style={{ display: 'flex', justifyContent: 'center' }}>
+              <QRCodeSVG
+                id="qris-svg"
+                value={dynamicQris}
+                size={256}
+                level="H"
+                className="qr-code"
+                {...(logoIcon && logoDims ? {
+                  imageSettings: {
+                    src: logoIcon,
+                    height: logoDims.height,
+                    width: logoDims.width,
+                    excavate: true
+                  }
+                } : {})}
+              />
+            </div>
+
+            <div style={{ textAlign: 'center', marginTop: '1.5rem', color: '#1e293b' }}>
+              <div style={{ fontSize: '1.5rem', fontWeight: 'bold', marginBottom: '0.25rem' }}>Rp {formattedAmount}</div>
+              <div style={{ fontSize: '0.85rem', color: '#64748b' }}>
+                Konversi QRIS Statismu di <a href="https://qris.yukmaju.com" target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} style={{ color: 'var(--accent)', textDecoration: 'none', fontWeight: 'bold' }}>qris.yukmaju.com</a>
+              </div>
+            </div>
+
+            <div style={{ position: 'absolute', bottom: '-1rem', right: '-1rem', background: 'var(--accent)', color: 'white', padding: '0.6rem', borderRadius: '50%', display: 'flex', boxShadow: '0 4px 12px rgba(0,0,0,0.2)' }}>
+              <Maximize2 size={18} />
+            </div>
           </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginBottom: '1.5rem', alignItems: 'center' }}>
@@ -407,18 +494,59 @@ export default function Home() {
             />
           </div>
 
-          <button className="btn" onClick={handleDownload} style={{ background: '#10b981', maxWidth: '300px', margin: '0 auto' }}>
-            <Download size={20} />
-            Download QR Code
-          </button>
+          <div style={{ display: 'flex', gap: '0.5rem', maxWidth: '400px', margin: '0 auto' }}>
+            <button className="btn" onClick={handleDownload} style={{ flex: 1, background: '#10b981' }}>
+              <Download size={20} />
+              Download
+            </button>
+            <button className="btn" onClick={handleShare} style={{ flex: 1, background: '#3b82f6' }}>
+              <Share2 size={20} />
+              Bagikan
+            </button>
+          </div>
         </div>
+      )}
+
+      {mounted && isFullscreenQr && dynamicQris && createPortal(
+        <div className="modal-overlay" onClick={() => setIsFullscreenQr(false)} style={{ zIndex: 9999, background: 'rgba(0,0,0,0.9)' }}>
+          <div style={{ background: 'white', padding: '1.5rem 1.5rem 2rem 1.5rem', borderRadius: '24px', display: 'flex', flexDirection: 'column', alignItems: 'center', position: 'relative', width: '90%', maxWidth: '500px', maxHeight: '90vh', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
+            <div style={{ width: '100%', display: 'flex', justifyContent: 'flex-end', marginBottom: '1rem' }}>
+              <button
+                onClick={() => setIsFullscreenQr(false)}
+                style={{ background: 'var(--slate-100, #f1f5f9)', border: 'none', color: '#1e293b', cursor: 'pointer', borderRadius: '50%', padding: '0.5rem', display: 'flex', transition: 'background 0.2s' }}
+              >
+                <X size={24} />
+              </button>
+            </div>
+            <QRCodeSVG
+              value={dynamicQris}
+              size={Math.min(typeof window !== 'undefined' ? window.innerWidth * 0.8 : 400, 400)}
+              level="H"
+              {...(logoIcon && logoDims ? {
+                imageSettings: {
+                  src: logoIcon,
+                  height: logoDims.height * 1.5,
+                  width: logoDims.width * 1.5,
+                  excavate: true
+                }
+              } : {})}
+            />
+            <div style={{ textAlign: 'center', marginTop: '1.5rem', color: '#1e293b' }}>
+              <div style={{ fontSize: '1.8rem', fontWeight: 'bold', marginBottom: '0.25rem' }}>Rp {formattedAmount}</div>
+              <div style={{ fontSize: '1rem', color: '#64748b' }}>
+                Konversi QRIS Statismu di <a href="https://qris.yukmaju.com" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--accent)', textDecoration: 'none', fontWeight: 'bold' }}>qris.yukmaju.com</a>
+              </div>
+            </div>
+          </div>
+        </div>,
+        document.body
       )}
 
       <canvas ref={canvasRef} className="hidden-canvas" />
 
-      {showInfo && (
+      {mounted && showInfo && createPortal(
         <div className="modal-overlay" onClick={() => setShowInfo(false)}>
-          <div className="modal-content glass-card" onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: '500px', maxHeight: '90vh', padding: 0, display: 'flex', flexDirection: 'column', position: 'relative', background: 'var(--glass-bg)', border: '1px solid var(--glass-border)', margin: '0 auto', boxSizing: 'border-box', overflow: 'hidden' }}>
+          <div className="modal-content glass-card" onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: '500px', maxHeight: '90vh', padding: 0, display: 'flex', flexDirection: 'column', position: 'relative', background: 'var(--glass-bg)', border: '1px solid var(--glass-border)', boxSizing: 'border-box', overflowY: 'auto' }}>
             
             <div style={{ position: 'sticky', top: 0, padding: '1.5rem 2rem', borderBottom: '1px solid var(--glass-border)', background: 'var(--glass-bg)', backdropFilter: 'blur(16px)', zIndex: 10, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <h2 style={{ fontSize: '1.5rem', color: 'var(--accent)', margin: 0 }}>Informasi & Disclaimer</h2>
@@ -450,7 +578,8 @@ export default function Home() {
             </div>
 
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Footer */}
