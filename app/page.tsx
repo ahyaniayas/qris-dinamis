@@ -3,8 +3,9 @@
 import React, { useState, useRef, useEffect } from 'react';
 import jsQR from 'jsqr';
 import { QRCodeSVG } from 'qrcode.react';
-import { Upload, AlertCircle, CheckCircle2, Download, QrCode, Camera, Image as ImageIcon, Info, X } from 'lucide-react';
+import { Upload, Camera, Download, QrCode, AlertCircle, X, Image as ImageIcon, Sun, Moon, CheckCircle2, Info } from 'lucide-react';
 import { Html5Qrcode } from 'html5-qrcode';
+import { useTheme } from 'next-themes';
 
 export default function Home() {
   const [imagePreview, setImagePreview] = useState<string | null>(null);
@@ -14,18 +15,25 @@ export default function Home() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [dynamicQris, setDynamicQris] = useState<string | null>(null);
-  
+
+  const { theme, setTheme } = useTheme();
+  const [mounted, setMounted] = useState(false);
+
   const [inputMode, setInputMode] = useState<'upload' | 'scan'>('upload');
   const [isScanning, setIsScanning] = useState(false);
   const [showInfo, setShowInfo] = useState(false);
-  
+
   const fileInputRef = useRef<HTMLInputElement>(null);
   const logoInputRef = useRef<HTMLInputElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const html5QrCodeRef = useRef<Html5Qrcode | null>(null);
 
   const [logoIcon, setLogoIcon] = useState<string | null>(null);
-  const [logoDims, setLogoDims] = useState<{width: number, height: number} | null>(null);
+  const [logoDims, setLogoDims] = useState<{ width: number, height: number } | null>(null);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   useEffect(() => {
     if (inputMode === 'scan') {
@@ -39,30 +47,37 @@ export default function Home() {
   }, [inputMode]);
 
   const startScan = async () => {
+    if (html5QrCodeRef.current && html5QrCodeRef.current.isScanning) {
+      return;
+    }
+
     setIsScanning(true);
     setQrisPayload(null);
     setError(null);
     setImagePreview(null);
-    
+
     try {
       if (!html5QrCodeRef.current) {
         html5QrCodeRef.current = new Html5Qrcode("reader");
       }
-      
+
       await html5QrCodeRef.current.start(
         { facingMode: "environment" },
         { fps: 10, qrbox: { width: 250, height: 250 } },
         (decodedText) => {
           setQrisPayload(decodedText);
           setInputMode('upload'); // Switch back to upload view to show success
-          stopScan();
         },
         () => {
           // Ignore frequent scan errors
         }
       );
-    } catch (err) {
-      console.error(err);
+    } catch (err: any) {
+      console.warn("Scan start error:", err);
+      // Ignore transition overlap errors, otherwise show error to user
+      if (typeof err === 'string' && (err.includes("transition") || err.includes("ongoing"))) {
+        return;
+      }
       setError("Gagal mengakses kamera. Pastikan izin diberikan.");
       setIsScanning(false);
       setInputMode('upload');
@@ -71,9 +86,13 @@ export default function Home() {
 
   const stopScan = () => {
     if (html5QrCodeRef.current && html5QrCodeRef.current.isScanning) {
-      html5QrCodeRef.current.stop().then(() => {
-        setIsScanning(false);
-      }).catch(console.error);
+      try {
+        html5QrCodeRef.current.stop().then(() => {
+          setIsScanning(false);
+        }).catch((e) => console.warn('Async stop error:', e));
+      } catch (err) {
+        console.warn('Sync stop error:', err);
+      }
     }
   };
 
@@ -131,7 +150,7 @@ export default function Home() {
     image.onload = () => {
       const canvas = canvasRef.current;
       if (!canvas) return;
-      
+
       const ctx = canvas.getContext('2d');
       if (!ctx) return;
 
@@ -206,12 +225,12 @@ export default function Home() {
   const handleDownload = () => {
     const svg = document.getElementById('qris-svg');
     if (!svg) return;
-    
+
     const svgData = new XMLSerializer().serializeToString(svg);
     const canvas = document.createElement('canvas');
     const ctx = canvas.getContext('2d');
     const img = new window.Image();
-    
+
     img.onload = () => {
       canvas.width = img.width + 40;
       canvas.height = img.height + 40;
@@ -219,7 +238,7 @@ export default function Home() {
         ctx.fillStyle = 'white';
         ctx.fillRect(0, 0, canvas.width, canvas.height);
         ctx.drawImage(img, 20, 20);
-        
+
         const pngFile = canvas.toDataURL('image/png');
         const downloadLink = document.createElement('a');
         downloadLink.download = `QRIS-${amount}.png`;
@@ -227,7 +246,7 @@ export default function Home() {
         downloadLink.click();
       }
     };
-    
+
     img.src = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svgData)));
   };
 
@@ -236,29 +255,40 @@ export default function Home() {
       <div className="header" style={{ position: 'relative' }}>
         <h1>QRIS Dinamis</h1>
         <p>Ubah QRIS Statis Anda menjadi Dinamis dengan mudah</p>
-        <button 
-          onClick={() => setShowInfo(true)}
-          style={{ position: 'absolute', top: 0, right: 0, background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', padding: '0.5rem' }}
-          title="Informasi & Disclaimer"
-        >
-          <Info size={24} />
-        </button>
+        <div style={{ position: 'absolute', top: 0, right: 0, display: 'flex', gap: '0.5rem' }}>
+          {mounted && (
+            <button
+              onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+              style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', padding: '0.5rem' }}
+              title="Ganti Tema"
+            >
+              {theme === 'dark' ? <Sun size={24} /> : <Moon size={24} />}
+            </button>
+          )}
+          <button
+            onClick={() => setShowInfo(true)}
+            style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', padding: '0.5rem' }}
+            title="Informasi & Disclaimer"
+          >
+            <Info size={24} />
+          </button>
+        </div>
       </div>
 
       <div className="form-group">
         <label>1. Masukkan QRIS Statis</label>
-        
+
         <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem' }}>
-          <button 
+          <button
             className={`btn ${inputMode === 'upload' ? '' : 'inactive-btn'}`}
-            style={{ flex: 1, opacity: inputMode === 'upload' ? 1 : 0.5, background: inputMode === 'upload' ? '' : 'rgba(255,255,255,0.1)' }}
+            style={{ flex: 1, opacity: inputMode === 'upload' ? 1 : 0.5, background: inputMode === 'upload' ? '' : 'var(--btn-secondary-bg)', color: inputMode === 'upload' ? '' : 'var(--text-primary)' }}
             onClick={() => setInputMode('upload')}
           >
             <ImageIcon size={18} /> Upload
           </button>
-          <button 
+          <button
             className={`btn ${inputMode === 'scan' ? '' : 'inactive-btn'}`}
-            style={{ flex: 1, opacity: inputMode === 'scan' ? 1 : 0.5, background: inputMode === 'scan' ? '' : 'rgba(255,255,255,0.1)' }}
+            style={{ flex: 1, opacity: inputMode === 'scan' ? 1 : 0.5, background: inputMode === 'scan' ? '' : 'var(--btn-secondary-bg)', color: inputMode === 'scan' ? '' : 'var(--text-primary)' }}
             onClick={() => setInputMode('scan')}
           >
             <Camera size={18} /> Kamera
@@ -266,8 +296,8 @@ export default function Home() {
         </div>
 
         <div style={{ display: inputMode === 'upload' ? 'block' : 'none' }}>
-          <div 
-            className="upload-area" 
+          <div
+            className="upload-area"
             onClick={() => fileInputRef.current?.click()}
           >
             {imagePreview ? (
@@ -278,11 +308,11 @@ export default function Home() {
                 <p>Klik untuk memilih gambar QRIS</p>
               </>
             )}
-            <input 
-              type="file" 
-              accept="image/*" 
-              ref={fileInputRef} 
-              onChange={handleFileChange} 
+            <input
+              type="file"
+              accept="image/*"
+              ref={fileInputRef}
+              onChange={handleFileChange}
             />
           </div>
         </div>
@@ -303,11 +333,11 @@ export default function Home() {
         <label>2. Masukkan Nominal (Rp)</label>
         <div style={{ position: 'relative' }}>
           <span style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-secondary)' }}>Rp</span>
-          <input 
-            type="text" 
-            className="input-field" 
+          <input
+            type="text"
+            className="input-field"
             style={{ paddingLeft: '2.5rem' }}
-            placeholder="Contoh: 50.000" 
+            placeholder="Contoh: 50.000"
             value={formattedAmount}
             onChange={handleAmountChange}
           />
@@ -321,9 +351,9 @@ export default function Home() {
         </div>
       )}
 
-      <button 
-        className="btn" 
-        onClick={handleConvert} 
+      <button
+        className="btn"
+        onClick={handleConvert}
         disabled={isProcessing || !qrisPayload || !amount}
       >
         <QrCode size={20} />
@@ -336,12 +366,12 @@ export default function Home() {
           <p style={{ color: 'var(--text-secondary)', marginBottom: '1.5rem', fontSize: '0.9rem' }}>
             Nominal: Rp {formattedAmount}
           </p>
-          
+
           <div className="qr-wrapper">
-            <QRCodeSVG 
+            <QRCodeSVG
               id="qris-svg"
-              value={dynamicQris} 
-              size={256} 
+              value={dynamicQris}
+              size={256}
               level="H"
               className="qr-code"
               {...(logoIcon && logoDims ? {
@@ -358,7 +388,7 @@ export default function Home() {
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginBottom: '1.5rem', alignItems: 'center' }}>
             <p style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>Opsional: Tambahkan Logo di Tengah QR</p>
             <div style={{ display: 'flex', gap: '0.5rem' }}>
-              <button className="btn" style={{ background: 'rgba(255,255,255,0.1)', fontSize: '0.9rem', padding: '0.5rem 1rem', width: 'auto' }} onClick={() => logoInputRef.current?.click()}>
+              <button className="btn" style={{ background: 'var(--btn-secondary-bg)', color: 'var(--text-primary)', fontSize: '0.9rem', padding: '0.5rem 1rem', width: 'auto' }} onClick={() => logoInputRef.current?.click()}>
                 <ImageIcon size={16} /> Pilih Logo
               </button>
               {logoIcon && (
@@ -367,11 +397,11 @@ export default function Home() {
                 </button>
               )}
             </div>
-            <input 
-              type="file" 
-              accept="image/*" 
-              ref={logoInputRef} 
-              onChange={handleLogoChange} 
+            <input
+              type="file"
+              accept="image/*"
+              ref={logoInputRef}
+              onChange={handleLogoChange}
               style={{ display: 'none' }}
             />
           </div>
@@ -387,17 +417,17 @@ export default function Home() {
 
       {showInfo && (
         <div className="modal-overlay" onClick={() => setShowInfo(false)}>
-          <div className="modal-content glass-card" onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: '500px', maxHeight: '90vh', overflowY: 'auto', position: 'relative', background: '#0f172a', border: '1px solid var(--glass-border)', margin: '0 auto', boxSizing: 'border-box' }}>
-            <button 
+          <div className="modal-content glass-card" onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: '500px', maxHeight: '90vh', overflowY: 'auto', position: 'relative', background: 'var(--glass-bg)', border: '1px solid var(--glass-border)', margin: '0 auto', boxSizing: 'border-box' }}>
+            <button
               onClick={() => setShowInfo(false)}
               style={{ position: 'absolute', top: '1.5rem', right: '1.5rem', background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer' }}
             >
               <X size={24} />
             </button>
             <h2 style={{ marginBottom: '1.5rem', fontSize: '1.5rem', color: 'var(--accent)', paddingRight: '2rem' }}>Informasi & Disclaimer</h2>
-            
+
             <div style={{ fontSize: '0.9rem', lineHeight: '1.5', color: 'var(--text-primary)', textAlign: 'left' }}>
-              <h3 style={{ marginTop: '1rem', marginBottom: '0.75rem', color: 'white', fontSize: '1.1rem' }}>Tata Cara Pemakaian:</h3>
+              <h3 style={{ marginTop: '1rem', marginBottom: '0.75rem', color: 'var(--text-primary)', fontSize: '1.1rem' }}>Tata Cara Pemakaian:</h3>
               <ol style={{ paddingLeft: '1.5rem', marginBottom: '1.5rem', listStyleType: 'decimal' }}>
                 <li style={{ marginBottom: '0.5rem' }}><strong>Siapkan QRIS Statis:</strong> Gunakan gambar QRIS dari bank/e-wallet Anda.</li>
                 <li style={{ marginBottom: '0.5rem' }}><strong>Pilih Input:</strong> Upload gambar atau gunakan Kamera untuk scan langsung.</li>
@@ -414,10 +444,20 @@ export default function Home() {
                 <li style={{ marginBottom: '0.5rem' }}>Selalu lakukan tes scan dengan nominal kecil sebelum digunakan untuk transaksi sungguhan.</li>
               </ol>
             </div>
-            
+
           </div>
         </div>
       )}
+
+      {/* Footer */}
+      <footer className="mt-8 text-center" style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>
+        <p>
+          Situs ini merupakan bagian dari{' '}
+          <a href="https://yukmaju.com" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--accent)', textDecoration: 'none', fontWeight: 'bold' }}>
+            yukmaju.com
+          </a>
+        </p>
+      </footer>
     </div>
   );
 }

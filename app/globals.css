@@ -4,30 +4,94 @@
 @tailwind components;
 @tailwind utilities;
 :root {
-  --bg-gradient-1: #0f172a;
-  --bg-gradient-2: #1e1b4b;
-  --glass-bg: rgba(255, 255, 255, 0.05);
-  --glass-border: rgba(255, 255, 255, 0.1);
+  /* Light Theme (YukMaju style) */
+  --body-bg: #ffffff;
+  --glass-bg: rgba(255, 255, 255, 0.6);
+  --glass-border: rgba(255, 255, 255, 0.8);
+  --glass-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  --text-primary: #1e293b; /* slate-800 */
+  --text-secondary: #64748b; /* slate-500 */
+  --accent: #4f46e5; /* indigo-600 */
+  --accent-hover: #4338ca; /* indigo-700 */
+  --error: #ef4444; /* red-500 */
+  --input-bg: rgba(255, 255, 255, 0.8);
+  --upload-bg: rgba(255, 255, 255, 0.5);
+  --btn-secondary-bg: rgba(79, 70, 229, 0.1);
+  --dot-color: rgba(79, 70, 229, 0.15);
+  --blob-1: #e879f9; /* fuchsia-400 */
+  --blob-2: #38bdf8; /* sky-400 */
+  --blob-3: #a5b4fc; /* indigo-300 */
+}
+
+.dark {
+  /* Dark Theme (YukMaju style) */
+  --body-bg: linear-gradient(135deg, #0f172a 0%, #1e1b4b 100%);
+  --glass-bg: rgba(15, 23, 42, 0.6);
+  --glass-border: rgba(255, 255, 255, 0.15);
   --glass-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
-  --text-primary: #f8fafc;
-  --text-secondary: #94a3b8;
-  --accent: #38bdf8;
-  --accent-hover: #0284c7;
-  --error: #ef4444;
+  --text-primary: #f8fafc; /* slate-50 */
+  --text-secondary: #94a3b8; /* slate-400 */
+  --accent: #6366f1; /* indigo-500 */
+  --accent-hover: #4f46e5; /* indigo-600 */
+  --error: #f87171; /* red-400 */
+  --input-bg: rgba(0, 0, 0, 0.3);
+  --upload-bg: rgba(255, 255, 255, 0.02);
+  --btn-secondary-bg: rgba(255, 255, 255, 0.1);
+  --dot-color: rgba(255, 255, 255, 0.05);
+  --blob-1: #6366f1; /* indigo-500 */
+  --blob-2: #8b5cf6; /* violet-500 */
+  --blob-3: #4f46e5; /* indigo-600 */
 }
 
 * {
   box-sizing: border-box;
   padding: 0;
   margin: 0;
-  font-family: 'Inter', sans-serif;
 }
 
 body {
   color: var(--text-primary);
+  background: var(--body-bg);
   min-height: 100vh;
   display: flex;
   flex-direction: column;
+  transition: background 0.3s ease, color 0.3s ease;
+  overflow-x: hidden;
+  position: relative;
+}
+
+/* Yuk Maju Background Aesthetics */
+.pattern-dots {
+  position: fixed;
+  inset: 0;
+  background-image: radial-gradient(var(--dot-color) 1.5px, transparent 1.5px);
+  background-size: 28px 28px;
+  z-index: -2;
+  transition: background-image 0.3s ease;
+}
+
+.blob {
+  position: fixed;
+  border-radius: 9999px;
+  filter: blur(70px);
+  opacity: 0.5;
+  pointer-events: none;
+  z-index: -1;
+  transition: background-color 0.5s ease;
+}
+
+.blob-1 { background: var(--blob-1); width: 400px; height: 400px; top: -100px; left: -100px; }
+.blob-2 { background: var(--blob-2); width: 450px; height: 450px; bottom: 10%; right: -150px; }
+.blob-3 { background: var(--blob-3); width: 350px; height: 350px; bottom: -50px; left: 20%; }
+
+@media (prefers-reduced-motion: no-preference) {
+  .blob { animation: drift 16s ease-in-out infinite; }
+  .blob-2 { animation-delay: -8s; }
+}
+
+@keyframes drift {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  50% { transform: translate(30px, -30px) scale(1.08); }
 }
 
 .container {
@@ -47,9 +111,9 @@ body {
 
 .header h1 {
   font-size: 2.5rem;
-  font-weight: 700;
+  font-weight: 800;
   margin-bottom: 0.5rem;
-  background: linear-gradient(to right, #38bdf8, #818cf8);
+  background: linear-gradient(to right, var(--accent), #818cf8);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
 }
@@ -93,7 +157,7 @@ body {
   text-align: center;
   cursor: pointer;
   transition: all 0.3s ease;
-  background: rgba(255, 255, 255, 0.02);
+  background: var(--upload-bg);
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -125,7 +189,7 @@ body {
 .input-field {
   width: 100%;
   padding: 1rem 1.2rem;
-  background: rgba(0, 0, 0, 0.2);
+  background: var(--input-bg);
   border: 1px solid var(--glass-border);
   border-radius: 12px;
   color: var(--text-primary);
