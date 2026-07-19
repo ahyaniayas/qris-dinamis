@@ -254,23 +254,33 @@ export default function Home() {
     }
   };
 
-  const createQrisCanvas = (img: HTMLImageElement, onReady: (canvas: HTMLCanvasElement) => void) => {
+  const createQrisCanvas = (img: HTMLImageElement, logoImg: HTMLImageElement | null, onReady: (canvas: HTMLCanvasElement) => void) => {
     const canvas = document.createElement('canvas');
     const ctx = canvas.getContext('2d');
     
     const PADDING = 40;
+    const HEADER_HEIGHT = logoImg ? 60 : 0;
     const FOOTER_HEIGHT = 100;
     
     canvas.width = img.width + (PADDING * 2);
-    canvas.height = img.height + FOOTER_HEIGHT + (PADDING * 2);
+    canvas.height = img.height + HEADER_HEIGHT + FOOTER_HEIGHT + (PADDING * 2);
     
     if (ctx) {
       // Background
       ctx.fillStyle = 'white';
       ctx.fillRect(0, 0, canvas.width, canvas.height);
       
+      let qrY = PADDING;
+      
+      if (logoImg) {
+        const logoH = 40;
+        const logoW = (logoImg.width / logoImg.height) * logoH;
+        const logoX = (canvas.width - logoW) / 2;
+        ctx.drawImage(logoImg, logoX, PADDING, logoW, logoH);
+        qrY += HEADER_HEIGHT;
+      }
+
       // Draw QR Code
-      const qrY = PADDING;
       ctx.drawImage(img, PADDING, qrY);
       
       // Footer text
@@ -296,13 +306,20 @@ export default function Home() {
     const img = new window.Image();
 
     img.onload = () => {
-      createQrisCanvas(img, (canvas) => {
-        const pngFile = canvas.toDataURL('image/png');
-        const downloadLink = document.createElement('a');
-        downloadLink.download = `QRIS-${amount}.png`;
-        downloadLink.href = `${pngFile}`;
-        downloadLink.click();
-      });
+      const finish = (logoImg: HTMLImageElement | null) => {
+        createQrisCanvas(img, logoImg, (canvas) => {
+          const pngFile = canvas.toDataURL('image/png');
+          const downloadLink = document.createElement('a');
+          downloadLink.download = `QRIS-${amount}.png`;
+          downloadLink.href = pngFile;
+          downloadLink.click();
+        });
+      };
+
+      const logoImg = new window.Image();
+      logoImg.src = '/qris-logo.svg';
+      logoImg.onload = () => finish(logoImg);
+      logoImg.onerror = () => finish(null);
     };
 
     img.src = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svgData)));
@@ -316,25 +333,33 @@ export default function Home() {
     const img = new window.Image();
 
     img.onload = () => {
-      createQrisCanvas(img, (canvas) => {
-        canvas.toBlob(async (blob) => {
-          if (!blob) return;
-          const file = new File([blob], `QRIS-${amount}.png`, { type: 'image/png' });
-          if (navigator.canShare && navigator.canShare({ files: [file] })) {
-            try {
-              await navigator.share({
-                title: 'QRIS Dinamis',
-                text: `QRIS Dinamis sebesar Rp ${formattedAmount}.\n\nKonversi QRIS Statismu di qris.yukmaju.com`,
-                files: [file]
-              });
-            } catch (err) {
-              console.log('Share canceled or failed:', err);
+      const finish = (logoImg: HTMLImageElement | null) => {
+        createQrisCanvas(img, logoImg, async (canvas) => {
+          canvas.toBlob(async (blob) => {
+            if (!blob) return;
+            const file = new File([blob], `QRIS-${amount}.png`, { type: 'image/png' });
+
+            if (navigator.canShare && navigator.canShare({ files: [file] })) {
+              try {
+                await navigator.share({
+                  title: 'QRIS Dinamis',
+                  text: `QRIS Dinamis sebesar Rp ${formattedAmount}.\n\nKonversi QRIS Statismu di qris.yukmaju.com`,
+                  files: [file]
+                });
+              } catch (err) {
+                console.error("Error sharing:", err);
+              }
+            } else {
+              alert('Peramban Anda tidak mendukung fitur berbagi file.');
             }
-          } else {
-            alert('Perangkat/Browser Anda tidak mendukung fitur berbagi file gambar secara langsung. Silakan gunakan tombol Download.');
-          }
-        }, 'image/png');
-      });
+          });
+        });
+      };
+
+      const logoImg = new window.Image();
+      logoImg.src = '/qris-logo.svg';
+      logoImg.onload = () => finish(logoImg);
+      logoImg.onerror = () => finish(null);
     };
 
     img.src = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svgData)));
@@ -461,6 +486,10 @@ export default function Home() {
 
           <div className="qr-wrapper" onClick={() => setIsFullscreenQr(true)} style={{ cursor: 'pointer', position: 'relative', background: 'white', padding: '2rem 1.5rem', borderRadius: '16px', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}>
             
+            <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '1.5rem' }}>
+              <img src="/qris-logo.svg" alt="QRIS" style={{ height: '36px' }} />
+            </div>
+
             <div style={{ display: 'flex', justifyContent: 'center' }}>
               <QRCodeSVG
                 id="qris-svg"
@@ -536,6 +565,11 @@ export default function Home() {
                 <X size={24} />
               </button>
             </div>
+            
+            <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '1.5rem' }}>
+              <img src="/qris-logo.svg" alt="QRIS" style={{ height: '36px' }} />
+            </div>
+
             <QRCodeSVG
               value={dynamicQris}
               size={Math.min(typeof window !== 'undefined' ? window.innerWidth - 32 : 468, typeof window !== 'undefined' ? window.innerHeight - 200 : 468, 468)}
